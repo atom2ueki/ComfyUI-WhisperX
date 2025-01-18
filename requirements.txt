@@ -5,6 +5,6 @@ faster-whisper==1.1.0
 transformers
 pandas
 nltk
-pyannote.audio
+pyannote.audio>=3.1
 ffmpeg-python
 translators
