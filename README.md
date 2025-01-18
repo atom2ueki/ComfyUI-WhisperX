@@ -1,5 +1,5 @@
 # ComfyUI-WhisperX
-a comfyui cuatom node for audio subtitling based on [whisperX](https://github.com/m-bain/whisperX.git) and [translators](https://github.com/UlionTse/translators)
+a comfyui custom node for audio subtitling based on [whisperX](https://github.com/m-bain/whisperX.git) and [translators](https://github.com/UlionTse/translators)
 <div>
   <figure>
   <img alt='webpage' src="web.png?raw=true" width="600px"/>
