@@ -32,7 +32,7 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
     model_dir = torch.hub._get_torch_home()
     main_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.makedirs(model_dir, exist_ok = True)
-    model_fp = os.path.join(main_dir, "assets", "pytorch_model.bin")
+    model_fp = os.path.join(main_dir, "whisperx", "assets", "pytorch_model.bin")
     model_fp = os.path.abspath(model_fp)  # Ensure the path is absolute
 
     # Check if the resolved model file exists
