@@ -12,7 +12,82 @@ from tqdm import tqdm
 
 from .diarize import Segment as SegmentX
 
-def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, **kwargs):
+def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=None):
+    """
+    Load the Voice Activity Detection model from the segmentation-3.0 model file.
+    
+    Parameters:
+        device: The device to load the model on ('cuda' or 'cpu')
+        vad_onset: Onset threshold for voice activity detection
+        vad_offset: Offset threshold for voice activity detection
+        use_auth_token: Hugging Face authentication token
+    """
+    import os
+    import torch
+    from pyannote.audio import Model
+    from pyannote.audio.pipelines import VoiceActivityDetection
+    from huggingface_hub import hf_hub_download
+    
+    # Define the model path in the local directory
+    model_dir = os.path.join(os.path.dirname(__file__), "models", "vad")
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, "segmentation_3_0.bin")
+    
+    # Download the model if it doesn't exist
+    if not os.path.exists(model_path):
+        if not use_auth_token:
+            raise ValueError(
+                "Please provide a valid Hugging Face token. "
+                "Visit https://hf.co/settings/tokens to create one and accept "
+                "the terms at https://hf.co/pyannote/segmentation-3.0"
+            )
+        
+        print(f"Downloading segmentation-3.0 model to {model_path}")
+        model_file = hf_hub_download(
+            repo_id="pyannote/segmentation-3.0",
+            filename="pytorch_model.bin",
+            token=use_auth_token,
+            cache_dir=model_dir
+        )
+        # Create a symlink or copy the file to our desired location
+        if not os.path.exists(model_path):
+            os.symlink(model_file, model_path)
+    
+    # Load the model configuration
+    model_config = {
+        "segmentation": {
+            "architecture": "PyanNet",
+            "task": {
+                "class": "OverlappedSpeechDetection",
+                "params": {
+                    "duration": 2.0,
+                    "batch_size": 32,
+                    "num_workers": 4
+                }
+            }
+        }
+    }
+    
+    # Load the model with configuration
+    vad_model = Model.from_pretrained(
+        model_path,
+        map_location=device,
+        strict=False
+    )
+    vad_model.task = model_config["segmentation"]["task"]
+    
+    # Configure the VAD pipeline
+    hyperparameters = {
+        "onset": vad_onset,
+        "offset": vad_offset,
+        "min_duration_on": 0.1,
+        "min_duration_off": 0.1
+    }
+    
+    vad_pipeline = VoiceActivityDetection(segmentation=vad_model)
+    vad_pipeline.instantiate(hyperparameters)
+    
+    return vad_pipeline
     """
     Load the Voice Activity Detection model directly from the segmentation-3.0 pytorch_model.bin file.
     
