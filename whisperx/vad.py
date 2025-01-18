@@ -5,7 +5,6 @@ import torch
 import pandas as pd
 from tqdm import tqdm
 from dataclasses import dataclass
-from huggingface_hub import hf_hub_download
 from pyannote.audio import Model
 from pyannote.audio.core.io import AudioFile
 from pyannote.audio.pipelines import VoiceActivityDetection
@@ -30,58 +29,32 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
         vad_offset: Offset threshold for voice activity detection
         use_auth_token: Hugging Face authentication token
     """
-    model_dir = os.path.join(os.path.dirname(__file__), "models", "vad")
-    os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, "segmentation_3_0.bin")
-    
-    if not os.path.exists(model_path):
-        if not use_auth_token or use_auth_token.strip() == "":
-            raise ValueError(
-                "Please provide a valid Hugging Face authentication token. "
-                "Visit https://hf.co/settings/tokens to create one."
-            )
+    model_dir = torch.hub._get_torch_home()
+    main_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.makedirs(model_dir, exist_ok = True)
+    model_fp = os.path.join(main_dir, "assets", "pytorch_model.bin")
+    model_fp = os.path.abspath(model_fp)  # Ensure the path is absolute
 
-        print(f"Downloading segmentation-3.0 model to {model_path}")
-        model_file = hf_hub_download(
-            repo_id="pyannote/segmentation-3.0",
-            filename="pytorch_model.bin",
-            token=use_auth_token,
-            cache_dir=model_dir
-        )
-        if not os.path.exists(model_path):
-            os.symlink(model_file, model_path)
-    
-    model_config = {
-        "segmentation": {
-            "architecture": "PyanNet",
-            "task": {
-                "class": "OverlappedSpeechDetection",
-                "params": {
-                    "duration": 2.0,
-                    "batch_size": 32,
-                    "num_workers": 4
-                }
-            }
-        }
-    }
+    # Check if the resolved model file exists
+    if not os.path.exists(model_fp):
+        raise FileNotFoundError(f"Model file not found at {model_fp}")
+
+    if os.path.exists(model_fp) and not os.path.isfile(model_fp):
+        raise RuntimeError(f"{model_fp} exists and is not a regular file")
+
+    model_bytes = open(model_fp, "rb").read()
     
     vad_model = Model.from_pretrained(
-        model_path,
-        map_location=device,
-        strict=False
+        model_bytes,
+        use_auth_token=use_auth_token,
     )
-    vad_model.task = model_config["segmentation"]["task"]
-    
-    hyperparameters = {
-        "onset": vad_onset,
-        "offset": vad_offset,
-        "min_duration_on": 0.1,
-        "min_duration_off": 0.1
-    }
-    
-    vad_pipeline = VoiceActivityDetection(segmentation=vad_model)
+    hyperparameters = {"onset": vad_onset,
+                    "offset": vad_offset,
+                    "min_duration_on": 0.1,
+                    "min_duration_off": 0.1}
+    vad_pipeline = VoiceActivitySegmentation(segmentation=vad_model, device=torch.device(device))
     vad_pipeline.instantiate(hyperparameters)
-    
+
     return vad_pipeline
 
 class Binarize:
