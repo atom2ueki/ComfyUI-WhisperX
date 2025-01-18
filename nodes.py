@@ -214,20 +214,3 @@ class WhisperX:
 
         except Exception as e:
             raise RuntimeError(f"Error in WhisperX processing: {str(e)}")
-
-class LoadAudioPath:
-    @classmethod
-    def INPUT_TYPES(s):
-        files = [f for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f)) and f.split('.')[-1] in ["wav", "mp3","WAV","flac","m4a"]]
-        return {"required":
-                    {"audio": (sorted(files),)},
-                }
-
-    CATEGORY = "_WhisperX"
-
-    RETURN_TYPES = ("AUDIOPATH",)
-    FUNCTION = "load_audio"
-
-    def load_audio(self, audio):
-        audio_path = folder_paths.get_annotated_filepath(audio)
-        return (audio_path,)
