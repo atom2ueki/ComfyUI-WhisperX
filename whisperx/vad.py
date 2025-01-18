@@ -35,13 +35,12 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
     model_path = os.path.join(model_dir, "segmentation_3_0.bin")
     
     if not os.path.exists(model_path):
-        if not use_auth_token:
+        if not use_auth_token or use_auth_token.strip() == "":
             raise ValueError(
-                "Please provide a valid Hugging Face token. "
-                "Visit https://hf.co/settings/tokens to create one and accept "
-                "the terms at https://hf.co/pyannote/segmentation-3.0"
+                "Please provide a valid Hugging Face authentication token. "
+                "Visit https://hf.co/settings/tokens to create one."
             )
-        
+
         print(f"Downloading segmentation-3.0 model to {model_path}")
         model_file = hf_hub_download(
             repo_id="pyannote/segmentation-3.0",
