@@ -108,7 +108,6 @@ class WhisperX:
                 device,
                 compute_type=compute_type,
                 language=None if source_language == "auto" else source_language,
-                asr_options={"hybrid_forward": True},
                 vad_options=vad_options
             )
 
