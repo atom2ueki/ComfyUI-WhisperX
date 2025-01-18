@@ -1,39 +1,39 @@
 import os
 from typing import Callable, Optional, Text, Union
-
+import numpy as np
 import torch
+import pandas as pd
+from tqdm import tqdm
+from dataclasses import dataclass
+from huggingface_hub import hf_hub_download
 from pyannote.audio import Model
 from pyannote.audio.core.io import AudioFile
 from pyannote.audio.pipelines import VoiceActivityDetection
 from pyannote.audio.pipelines.utils import PipelineModel
 from pyannote.core import Annotation, Segment, SlidingWindowFeature
-import pandas as pd
-from tqdm import tqdm
 
-from .diarize import Segment as SegmentX
+@dataclass
+class SegmentX:
+    start: float
+    end: float
+    speaker: Optional[str] = None
+
+    def duration(self) -> float:
+        return self.end - self.start
 
 def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=None):
-    """
-    Load the Voice Activity Detection model from the segmentation-3.0 model file.
+    """Load the Voice Activity Detection model from the segmentation-3.0 model file.
     
     Parameters:
-        device: The device to load the model on ('cuda' or 'cpu')
+        device: Device for model computation ('cuda' or 'cpu')
         vad_onset: Onset threshold for voice activity detection
         vad_offset: Offset threshold for voice activity detection
         use_auth_token: Hugging Face authentication token
     """
-    import os
-    import torch
-    from pyannote.audio import Model
-    from pyannote.audio.pipelines import VoiceActivityDetection
-    from huggingface_hub import hf_hub_download
-    
-    # Define the model path in the local directory
     model_dir = os.path.join(os.path.dirname(__file__), "models", "vad")
     os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, "segmentation_3_0.bin")
     
-    # Download the model if it doesn't exist
     if not os.path.exists(model_path):
         if not use_auth_token:
             raise ValueError(
@@ -49,11 +49,9 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
             token=use_auth_token,
             cache_dir=model_dir
         )
-        # Create a symlink or copy the file to our desired location
         if not os.path.exists(model_path):
             os.symlink(model_file, model_path)
     
-    # Load the model configuration
     model_config = {
         "segmentation": {
             "architecture": "PyanNet",
@@ -68,7 +66,6 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
         }
     }
     
-    # Load the model with configuration
     vad_model = Model.from_pretrained(
         model_path,
         map_location=device,
@@ -76,7 +73,6 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
     )
     vad_model.task = model_config["segmentation"]["task"]
     
-    # Configure the VAD pipeline
     hyperparameters = {
         "onset": vad_onset,
         "offset": vad_offset,
@@ -85,205 +81,13 @@ def load_vad_model(device, vad_onset=0.500, vad_offset=0.363, use_auth_token=Non
     }
     
     vad_pipeline = VoiceActivityDetection(segmentation=vad_model)
-    vad_pipeline.instantiate(hyperparameters)
-    
-    return vad_pipeline
-    """
-    Load the Voice Activity Detection model directly from the segmentation-3.0 pytorch_model.bin file.
-    
-    Parameters:
-        device: The device to load the model on ('cuda' or 'cpu')
-        vad_onset: Onset threshold for voice activity detection
-        vad_offset: Offset threshold for voice activity detection
-        **kwargs: Additional keyword arguments (including use_auth_token) are accepted but not used
-    """
-    import os
-    import torch
-    from pyannote.audio import Model
-    from pyannote.audio.pipelines import VoiceActivityDetection
-    
-    # Define the model path in the local directory
-    model_dir = os.path.join(os.path.dirname(__file__), "models", "vad")
-    os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, "segmentation_3_0.bin")
-    
-    # Download the model if it doesn't exist
-    if not os.path.exists(model_path):
-        import urllib.request
-        from tqdm import tqdm
-        
-        # URL for the segmentation-3.0 model
-        model_url = "https://huggingface.co/pyannote/segmentation-3.0/resolve/main/pytorch_model.bin"
-        
-        print(f"Downloading segmentation-3.0 model to {model_path}")
-        with urllib.request.urlopen(model_url) as source, open(model_path, "wb") as output:
-            with tqdm(total=int(source.info().get("Content-Length", 0)), 
-                     desc="Downloading VAD model", 
-                     unit='iB', 
-                     unit_scale=True) as progress:
-                while True:
-                    buffer = source.read(8192)
-                    if not buffer:
-                        break
-                    output.write(buffer)
-                    progress.update(len(buffer))
-    
-    # Load the model configuration
-    model_config = {
-        "segmentation": {
-            "architecture": "PyanNet",
-            "task": {
-                "class": "OverlappedSpeechDetection",
-                "params": {
-                    "duration": 2.0,
-                    "batch_size": 32,
-                    "num_workers": 4
-                }
-            }
-        }
-    }
-    
-    # Load the model with configuration
-    vad_model = Model.from_pretrained(
-        model_path,
-        map_location=device,
-        strict=False
-    )
-    vad_model.task = model_config["segmentation"]["task"]
-    
-    # Configure the VAD pipeline
-    hyperparameters = {
-        "onset": vad_onset,
-        "offset": vad_offset,
-        "min_duration_on": 0.1,
-        "min_duration_off": 0.1
-    }
-    
-    vad_pipeline = VoiceActivityDetection(segmentation=vad_model)
-    vad_pipeline.instantiate(hyperparameters)
-    
-    return vad_pipeline
-    """
-    Load the Voice Activity Detection model directly from the segmentation-3.0 pytorch_model.bin file.
-    
-    Parameters:
-        device: The device to load the model on ('cuda' or 'cpu')
-        vad_onset: Onset threshold for voice activity detection
-        vad_offset: Offset threshold for voice activity detection
-    """
-    import os
-    import torch
-    from pyannote.audio import Model
-    from pyannote.audio.pipelines import VoiceActivityDetection
-    
-    # Define the model path in the local directory
-    model_dir = os.path.join(os.path.dirname(__file__), "models", "vad")
-    os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, "segmentation_3_0.bin")
-    
-    # Download the model if it doesn't exist
-    if not os.path.exists(model_path):
-        import urllib.request
-        from tqdm import tqdm
-        
-        # URL for the segmentation-3.0 model
-        model_url = "https://huggingface.co/pyannote/segmentation-3.0/resolve/main/pytorch_model.bin"
-        
-        print(f"Downloading segmentation-3.0 model to {model_path}")
-        with urllib.request.urlopen(model_url) as source, open(model_path, "wb") as output:
-            with tqdm(total=int(source.info().get("Content-Length", 0)), 
-                     desc="Downloading VAD model", 
-                     unit='iB', 
-                     unit_scale=True) as progress:
-                while True:
-                    buffer = source.read(8192)
-                    if not buffer:
-                        break
-                    output.write(buffer)
-                    progress.update(len(buffer))
-    
-    # Load the model configuration
-    model_config = {
-        "segmentation": {
-            "architecture": "PyanNet",
-            "task": {
-                "class": "OverlappedSpeechDetection",
-                "params": {
-                    "duration": 2.0,
-                    "batch_size": 32,
-                    "num_workers": 4
-                }
-            }
-        }
-    }
-    
-    # Load the model with configuration
-    vad_model = Model.from_pretrained(
-        model_path,
-        map_location=device,
-        strict=False
-    )
-    vad_model.task = model_config["segmentation"]["task"]
-    
-    # Configure the VAD pipeline
-    hyperparameters = {
-        "onset": vad_onset,
-        "offset": vad_offset,
-        "min_duration_on": 0.1,
-        "min_duration_off": 0.1
-    }
-    
-    vad_pipeline = VoiceActivityDetection(segmentation=vad_model)
-    vad_pipeline.instantiate(hyperparameters)
-    
-    return vad_pipeline
-
-    """
-    Load the Voice Activity Detection model from Hugging Face.
-    
-    Parameters
-    ----------
-    device : str
-        The device to load the model on ('cuda' or 'cpu')
-    vad_onset : float, optional
-        Onset threshold for voice activity detection
-    vad_offset : float, optional
-        Offset threshold for voice activity detection
-    use_auth_token : str, optional
-        HuggingFace authentication token
-        
-    Returns
-    -------
-    VoiceActivitySegmentation
-        The loaded VAD pipeline
-    """
-    # Using the pyannote/segmentation model from Hugging Face
-    vad_model = Model.from_pretrained(
-        "pyannote/segmentation", 
-        use_auth_token=use_auth_token
-    )
-    
-    # Configure hyperparameters
-    hyperparameters = {
-        "onset": vad_onset,
-        "offset": vad_offset,
-        "min_duration_on": 0.1,
-        "min_duration_off": 0.1
-    }
-    
-    # Create and configure the pipeline
-    vad_pipeline = VoiceActivitySegmentation(
-        segmentation=vad_model,
-        device=torch.device(device)
-    )
     vad_pipeline.instantiate(hyperparameters)
     
     return vad_pipeline
 
 class Binarize:
-    """Binarize detection scores using hysteresis thresholding, with min-cut operation
-    to ensure no segments are longer than max_duration.
-    """
+    """Binarize detection scores using hysteresis thresholding with min-cut operation."""
+    
     def __init__(
         self,
         onset: float = 0.5,
@@ -294,7 +98,6 @@ class Binarize:
         pad_offset: float = 0.0,
         max_duration: float = float('inf')
     ):
-        super().__init__()
         self.onset = onset
         self.offset = offset or onset
         self.pad_onset = pad_onset
@@ -304,7 +107,7 @@ class Binarize:
         self.max_duration = max_duration
 
     def __call__(self, scores: SlidingWindowFeature) -> Annotation:
-        """Binarize detection scores"""
+        """Process and binarize detection scores."""
         num_frames, num_classes = scores.data.shape
         frames = scores.sliding_window
         timestamps = [frames[i].middle for i in range(num_frames)]
@@ -313,7 +116,6 @@ class Binarize:
         for k, k_scores in enumerate(scores.data.T):
             label = k if scores.labels is None else scores.labels[k]
             
-            # Initial state
             start = timestamps[0]
             is_active = k_scores[0] > self.onset
             curr_scores = [k_scores[0]]
@@ -341,10 +143,9 @@ class Binarize:
                         curr_timestamps = []
                     curr_scores.append(y)
                     curr_timestamps.append(t)
-                else:
-                    if y > self.onset:
-                        start = t
-                        is_active = True
+                elif y > self.onset:
+                    start = t
+                    is_active = True
 
             if is_active:
                 region = Segment(start - self.pad_onset, t + self.pad_offset)
@@ -363,7 +164,8 @@ class Binarize:
         return active
 
 class VoiceActivitySegmentation(VoiceActivityDetection):
-    """Voice activity segmentation pipeline"""
+    """Pipeline for voice activity segmentation."""
+    
     def __init__(
         self,
         segmentation: PipelineModel = "pyannote/segmentation",
@@ -379,7 +181,7 @@ class VoiceActivitySegmentation(VoiceActivityDetection):
         )
 
     def apply(self, file: AudioFile, hook: Optional[Callable] = None) -> Annotation:
-        """Apply voice activity detection"""
+        """Apply voice activity detection to audio file."""
         hook = self.setup_hook(file, hook=hook)
         
         if self.training:
@@ -393,9 +195,8 @@ class VoiceActivitySegmentation(VoiceActivityDetection):
 
         return segmentations
 
-# Helper functions remain unchanged
 def merge_vad(vad_arr, pad_onset=0.0, pad_offset=0.0, min_duration_off=0.0, min_duration_on=0.0):
-    """Merge voice activity detection segments"""
+    """Merge voice activity detection segments with padding and duration constraints."""
     active = Annotation()
     for k, vad_t in enumerate(vad_arr):
         region = Segment(vad_t[0] - pad_onset, vad_t[1] + pad_offset)
@@ -414,23 +215,23 @@ def merge_vad(vad_arr, pad_onset=0.0, pad_offset=0.0, min_duration_off=0.0, min_
     return active_segs
 
 def merge_chunks(segments, chunk_size, onset: float = 0.5, offset: Optional[float] = None):
-    """Merge segments into chunks"""
-    curr_end = 0
-    merged_segments = []
-    
+    """Merge segments into chunks with specified size constraints."""
     binarize = Binarize(max_duration=chunk_size, onset=onset, offset=offset)
     segments = binarize(segments)
     segments_list = []
+    
     for speech_turn in segments.get_timeline():
         segments_list.append(SegmentX(speech_turn.start, speech_turn.end, "UNKNOWN"))
 
-    if len(segments_list) == 0:
+    if not segments_list:
         print("No active speech found in audio")
         return []
 
     curr_start = segments_list[0].start
+    curr_end = segments_list[0].end
+    merged_segments = []
 
-    for seg in segments_list:
+    for seg in segments_list[1:]:
         if seg.end - curr_start > chunk_size and curr_end - curr_start > 0:
             merged_segments.append({
                 "start": curr_start,
@@ -438,7 +239,6 @@ def merge_chunks(segments, chunk_size, onset: float = 0.5, offset: Optional[floa
                 "segments": [(s.start, s.end) for s in segments_list],
             })
             curr_start = seg.start
-
         curr_end = seg.end
 
     merged_segments.append({
