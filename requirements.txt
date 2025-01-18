@@ -1,5 +1,7 @@
 srt
-faster-whisper
+torch>=2
+torchaudio>=2
+faster-whisper==1.1.0
 transformers
 pandas
 nltk
