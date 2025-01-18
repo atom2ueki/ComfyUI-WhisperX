@@ -57,6 +57,181 @@ class SRTToString:
 class WhisperX:
     @classmethod
     def INPUT_TYPES(s):
+        model_list = ["large-v3", "distil-large-v3", "large-v2"]
+        translator_list = ['alibaba', 'apertium', 'argos', 'baidu', 'bing',
+            'caiyun', 'cloudTranslation', 'deepl', 'elia', 'google',
+            'hujiang', 'iciba', 'iflytek', 'iflyrec', 'itranslate',
+            'judic', 'languageWire', 'lingvanex', 'mglip', 'mirai',
+            'modernMt', 'myMemory', 'niutrans', 'papago', 'qqFanyi',
+            'qqTranSmart', 'reverso', 'sogou', 'sysTran', 'tilde',
+            'translateCom', 'translateMe', 'utibet', 'volcEngine', 'yandex',
+            'yeekit', 'youdao']
+        lang_list = ["auto", "zh", "en", "ja", "ko", "ru", "fr", "de", "es", "pt", "it", "ar"]
+        return {"required": {
+            "audio": ("AUDIOPATH",),
+            "model_type": (model_list, {
+                "default": "large-v3"
+            }),
+            "batch_size": ("INT", {
+                "default": 4,
+                "min": 1,
+                "max": 32
+            }),
+            "if_multiple_speaker": ("BOOLEAN", {
+                "default": False
+            }),
+            "use_auth_token": ("STRING", {
+                "default": "",
+                "multiline": False,
+                "placeholder": "Enter your Hugging Face token"
+            }),
+            "source_language": (lang_list, {
+                "default": "auto"
+            }),
+            "if_translate": ("BOOLEAN", {
+                "default": False
+            }),
+            "translator": (translator_list, {
+                "default": "alibaba"
+            }),
+            "to_language": (lang_list[1:], {
+                "default": "en"
+            })
+        }}
+
+    CATEGORY = "ATOM2UEKI_WhisperX"
+    RETURN_TYPES = ("SRT", "SRT")
+    RETURN_NAMES = ("ori_SRT", "trans_SRT")
+    FUNCTION = "get_srt"
+
+    def validate_auth_token(self, use_auth_token):
+        if not use_auth_token or use_auth_token.strip() == "":
+            raise ValueError("Please provide a valid Hugging Face authentication token. Visit https://hf.co/settings/tokens to create one.")
+        return use_auth_token.strip()
+
+    def get_srt(self, audio, model_type, batch_size, if_multiple_speaker,
+                use_auth_token, source_language, if_translate, translator, to_language):
+        compute_type = "float16"
+        base_name = os.path.basename(audio)[:-4]
+        device = "cuda" if cuda_malloc.cuda_supported() else "cpu"
+
+        # Validate auth token before proceeding
+        if if_multiple_speaker:
+            use_auth_token = self.validate_auth_token(use_auth_token)
+
+        try:
+            # 1. Transcribe with original whisper (batched)
+            model = whisperx.load_model(model_type, device, compute_type=compute_type)
+            audio_data = whisperx.load_audio(audio)
+            
+            # Handle language detection/selection
+            if source_language == "auto":
+                result = model.transcribe(audio_data, batch_size=batch_size)
+                detected_language = result["language"]
+            else:
+                result = model.transcribe(audio_data, batch_size=batch_size, language=source_language)
+                detected_language = source_language
+
+            # 2. Align whisper output
+            try:
+                model_a, metadata = whisperx.load_align_model(
+                    language_code=detected_language,
+                    device=device
+                )
+                result = whisperx.align(
+                    result["segments"],
+                    model_a,
+                    metadata,
+                    audio_data,
+                    device,
+                    return_char_alignments=False
+                )
+            except Exception as e:
+                print(f"Warning: Alignment failed - {str(e)}")
+                print("Continuing with unaligned transcription...")
+
+            # Clean up GPU memory
+            del model_a, model
+            torch.cuda.empty_cache()
+            gc.collect()
+
+            if if_multiple_speaker:
+                try:
+                    # Initialize diarization pipeline with explicit model name
+                    diarize_model = whisperx.DiarizationPipeline(
+                        model_name="pyannote/speaker-diarization@2.1",
+                        use_auth_token=use_auth_token,
+                        device=device
+                    )
+
+                    # Perform diarization
+                    diarize_segments = diarize_model(audio_data)
+                    result = whisperx.assign_word_speakers(diarize_segments, result)
+                    
+                    # Clean up
+                    del diarize_model
+                    torch.cuda.empty_cache()
+                    gc.collect()
+                except Exception as e:
+                    print(f"Speaker diarization failed: {str(e)}")
+                    print("Continuing without speaker labels...")
+
+            # Generate output paths
+            timestamp = time.time()
+            srt_path = os.path.join(out_path, f"{timestamp}_{base_name}.srt")
+            trans_srt_path = os.path.join(out_path, f"{timestamp}_{base_name}_{to_language}.srt")
+
+            # Process segments
+            srt_line = []
+            trans_srt_line = []
+            
+            for i, res in enumerate(tqdm(result["segments"], desc="Processing segments...", total=len(result["segments"]))):
+                start = timedelta(seconds=res['start'])
+                end = timedelta(seconds=res['end'])
+                speaker_name = res.get("speaker", "")[-1] if "speaker" in res else "0"
+                content = res['text']
+                
+                srt_line.append(srt.Subtitle(
+                    index=i+1,
+                    start=start,
+                    end=end,
+                    content=f"Speaker {speaker_name}: {content}" if speaker_name != "0" else content
+                ))
+
+                if if_translate:
+                    try:
+                        translated_content = ts.translate_text(
+                            query_text=content,
+                            translator=translator,
+                            to_language=to_language
+                        )
+                        trans_srt_line.append(srt.Subtitle(
+                            index=i+1,
+                            start=start,
+                            end=end,
+                            content=f"Speaker {speaker_name}: {translated_content}" if speaker_name != "0" else translated_content
+                        ))
+                    except Exception as e:
+                        print(f"Translation failed for segment {i+1}: {str(e)}")
+                        trans_srt_line.append(srt_line[-1])
+
+            # Write output files
+            with open(srt_path, 'w', encoding="utf-8") as f:
+                f.write(srt.compose(srt_line))
+
+            if if_translate:
+                with open(trans_srt_path, 'w', encoding="utf-8") as f:
+                    f.write(srt.compose(trans_srt_line))
+            else:
+                trans_srt_path = srt_path
+
+            return (srt_path, trans_srt_path)
+
+        except Exception as e:
+            raise RuntimeError(f"Error in WhisperX processing: {str(e)}")
+        
+    @classmethod
+    def INPUT_TYPES(s):
         model_list = ["large-v3","distil-large-v3","large-v2"]
         translator_list = ['alibaba', 'apertium', 'argos', 'baidu', 'bing',
         'caiyun', 'cloudTranslation', 'deepl', 'elia', 'google',
