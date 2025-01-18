@@ -1,8 +1,7 @@
 srt
-torch==2.5.0
-torchvision==0.20.0 
-torchaudio==2.5.0 
-pytorch-cuda==12.4
+torch==2.5.0+cu124
+torchvision==0.20.0+cu124
+torchaudio==2.5.0+cu124
 faster-whisper==1.1.0
 transformers
 pandas
