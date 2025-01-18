@@ -261,43 +261,37 @@ def load_model(whisper_arch,
                device_index=0,
                compute_type="float16",
                asr_options=None,
-               language : Optional[str] = None,
+               language: Optional[str] = None,
                vad_model=None,
                vad_options=None,
-               model : Optional[WhisperModel] = None,
+               model: Optional[WhisperModel] = None,
                task="transcribe",
                download_root=None,
                threads=4):
-    '''Load a Whisper model for inference.
-    Args:
-        whisper_arch: str - The name of the Whisper model to load.
-        device: str - The device to load the model on.
-        compute_type: str - The compute type to use for the model.
-        options: dict - A dictionary of options to use for the model.
-        language: str - The language of the model. (use English for now)
-        model: Optional[WhisperModel] - The WhisperModel instance to use.
-        download_root: Optional[str] - The root directory to download the model to.
-        threads: int - The number of cpu threads to use per worker, e.g. will be multiplied by num workers.
-    Returns:
-        A Whisper pipeline.
-    '''
-
+    """Load a Whisper model for inference."""
+    
     if whisper_arch.endswith(".en"):
         language = "en"
 
     model = model or WhisperModel(whisper_arch,
-                         device=device,
-                         device_index=device_index,
-                         compute_type=compute_type,
-                         download_root=download_root,
-                         cpu_threads=threads)
+                                device=device,
+                                device_index=device_index,
+                                compute_type=compute_type,
+                                download_root=download_root,
+                                cpu_threads=threads)
+                                
     if language is not None:
-        tokenizer = faster_whisper.tokenizer.Tokenizer(model.hf_tokenizer, model.model.is_multilingual, task=task, language=language)
+        tokenizer = faster_whisper.tokenizer.Tokenizer(
+            model.hf_tokenizer, 
+            model.model.is_multilingual, 
+            task=task, 
+            language=language
+        )
     else:
         print("No language specified, language will be first be detected for each audio file (increases inference time).")
         tokenizer = None
 
-    default_asr_options =  {
+    default_asr_options = {
         "beam_size": 5,
         "best_of": 5,
         "patience": 1,
@@ -337,7 +331,8 @@ def load_model(whisper_arch,
 
     default_vad_options = {
         "vad_onset": 0.500,
-        "vad_offset": 0.363
+        "vad_offset": 0.363,
+        "use_auth_token": None  # Initialize with None
     }
 
     if vad_options is not None:
@@ -346,7 +341,13 @@ def load_model(whisper_arch,
     if vad_model is not None:
         vad_model = vad_model
     else:
-        vad_model = load_vad_model(torch.device(device), use_auth_token=None, **default_vad_options)
+        # Pass the auth token from vad_options
+        vad_model = load_vad_model(
+            torch.device(device),
+            use_auth_token=default_vad_options.get("use_auth_token"),
+            vad_onset=default_vad_options["vad_onset"],
+            vad_offset=default_vad_options["vad_offset"]
+        )
 
     return FasterWhisperPipeline(
         model=model,
