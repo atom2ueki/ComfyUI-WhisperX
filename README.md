@@ -23,7 +23,7 @@ for Windows,you can install `ffmpeg` by [WingetUI](https://github.com/marticlime
 
 then!
 ```
-git clone https://github.com/AIFSH/ComfyUI-WhisperX.git
+git clone https://github.com/atom2ueki/ComfyUI-WhisperX.git
 cd ComfyUI-WhisperX
 pip install -r requirements.txt
 ```
@@ -34,17 +34,6 @@ to speaker diarization, you need!
 1. Accept [`pyannote/segmentation-3.0`](https://hf.co/pyannote/segmentation-3.0) user conditions
 2. Accept [`pyannote/speaker-diarization-3.1`](https://hf.co/pyannote/speaker-diarization-3.1) user conditions
 3. Create access token at [`hf.co/settings/tokens`](https://hf.co/settings/tokens).
-
-## Tutorial
-[Demo](https://www.bilibili.com/video/BV19i421y7jb/)
-
-## WeChat Group && Donate
-<div>
-  <figure>
-  <img alt='Wechat' src="wechat.jpg?raw=true" width="300px"/>
-  <img alt='donate' src="donate.jpg?raw=true" width="300px"/>
-  <figure>
-</div>
 
 ## Thanks
 - [whisperX](https://github.com/m-bain/whisperX.git)

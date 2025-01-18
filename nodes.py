@@ -18,7 +18,7 @@ class PreViewSRT:
                     {"srt": ("SRT",)},
                 }
 
-    CATEGORY = "AIFSH_WhisperX"
+    CATEGORY = "ATOM2UEKI_WhisperX"
 
     RETURN_TYPES = ()
     OUTPUT_NODE = True
@@ -43,7 +43,7 @@ class SRTToString:
     RETURN_TYPES = ("STRING",)
     FUNCTION = "read"
 
-    CATEGORY = "AIFSH_FishSpeech"
+    CATEGORY = "ATOM2UEKI_FishSpeech"
 
     def read(self,srt):
         srt_name = os.path.basename(srt)
@@ -93,7 +93,7 @@ class WhisperX:
                      },
                 }
 
-    CATEGORY = "AIFSH_WhisperX"
+    CATEGORY = "ATOM2UEKI_WhisperX"
 
     RETURN_TYPES = ("SRT","SRT")
     RETURN_NAMES = ("ori_SRT","trans_SRT")
@@ -169,7 +169,7 @@ class LoadAudioPath:
                     {"audio": (sorted(files),)},
                 }
 
-    CATEGORY = "AIFSH_WhisperX"
+    CATEGORY = "_WhisperX"
 
     RETURN_TYPES = ("AUDIOPATH",)
     FUNCTION = "load_audio"
