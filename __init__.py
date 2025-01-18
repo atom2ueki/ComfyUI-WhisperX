@@ -1,8 +1,17 @@
-import os,sys
+import os
+import sys
+import torch
+
 now_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(now_dir)
 WEB_DIRECTORY = "./web"
-from .nodes import WhisperX,PreViewSRT,SRTToString
+from .nodes import WhisperX, PreViewSRT, SRTToString
+
+# Enable TensorFloat-32 for PyTorch
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+print("TF32 for matmul enabled:", torch.backends.cuda.matmul.allow_tf32)
+print("TF32 for cuDNN enabled:", torch.backends.cudnn.allow_tf32)
 
 # Set the web directory, any .js file in that directory will be loaded by the frontend as a frontend extension
 # WEB_DIRECTORY = "./somejs"
@@ -11,13 +20,13 @@ from .nodes import WhisperX,PreViewSRT,SRTToString
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "WhisperX": WhisperX,
-    "PreViewSRT":PreViewSRT,
-    "SRTToString":SRTToString
+    "PreViewSRT": PreViewSRT,
+    "SRTToString": SRTToString
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
 NODE_DISPLAY_NAME_MAPPINGS = {
     "WhisperX": "WhisperX Node",
-    "PreViewSRT":"PreView SRT",
+    "PreViewSRT": "PreView SRT",
     "SRTToString": "SRT to String"
 }
