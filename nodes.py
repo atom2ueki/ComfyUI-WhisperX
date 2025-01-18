@@ -49,14 +49,14 @@ class SRTToString:
         srt_name = os.path.basename(srt)
         dir_name = os.path.dirname(srt)
         dir_name = os.path.basename(dir_name)
-        with open(srt, 'r') as f:
+        with open(srt, 'r', encoding="utf-8") as f:
             srt_content = f.read()
         return (srt_content,)
     
 class WhisperX:
     @classmethod
     def INPUT_TYPES(s):
-        model_list = ["large-v3", "distil-large-v3", "large-v2"]
+        model_list = ["large-v3","distil-large-v3","large-v2", "large-v3-turbo"]
         translator_list = ['alibaba', 'apertium', 'argos', 'baidu', 'bing', 'caiyun', 'cloudTranslation',
                            'deepl', 'elia', 'google', 'hujiang', 'iciba', 'iflytek', 'iflyrec', 'itranslate',
                            'judic', 'languageWire', 'lingvanex', 'mglip', 'mirai', 'modernMt', 'myMemory',
@@ -91,7 +91,10 @@ class WhisperX:
                 use_auth_token, source_language, if_translate, translator, to_language):
         compute_type = "float16"
         base_name = os.path.basename(audio)[:-4]
-        device = "cuda" if cuda_malloc.cuda_supported() else "cpu"
+        device = "cuda" if cuda_malloc.cuda_malloc_supported() else "cpu"
+
+        if model_type == "large-v3-turbo":
+            model_type = "deepdml/faster-whisper-large-v3-turbo-ct2"
 
         # Validate token if speaker diarization is enabled
         if if_multiple_speaker:
